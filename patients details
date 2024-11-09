@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RuralHealth AI</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>RuralHealth AI</h1>
+        <div id="patient-form">
+            <h2>Add Patient</h2>
+            <label for="name">Name:</label>
+            <input type="text" id="name">
+            <label for="age">Age:</label>
+            <input type="number" id="age">
+            <label for="conditions">Chronic Conditions:</label>
+            <input type="text" id="conditions">
+            <button onclick="addPatient()">Add Patient</button>
+        </div>
+
+        <div id="patient-data">
+            <h2>Patient Details</h2>
+            <input type="text" id="patient-id" placeholder="Enter Patient ID">
+            <button onclick="getPatientData()">Get Patient Data</button>
+            <div id="patient-details"></div>
+            <button onclick="predictRisk()">Predict Risk</button>
+            <div id="risk-score"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f3f3f3;
+}
+
+.container {
+    width: 400px;
+    padding: 20px;
+    background-color: #ffffff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+h1, h2 {
+    color: #333;
+}
+
+label, input, button {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+button {
+    padding: 10px;
+    background-color: #4CAF50;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+// Firebase Configuration
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    databaseURL: "YOUR_DATABASE_URL",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Function to add a new patient
+function addPatient() {
+    const name = document.getElementById('name').value;
+    const age = document.getElementById('age').value;
+    const conditions = document.getElementById('conditions').value;
+
+    if (name && age && conditions) {
+        const patientId = `patient_${Date.now()}`;
+        db.ref('patients/' + patientId).set({
+            name: name,
+            age: age,
+            chronicConditions: conditions,
+        })
+        .then(() => alert("Patient added successfully!"))
+        .catch(error => console.error("Error adding patient: ", error));
+    } else {
+        alert("Please fill out all fields.");
+    }
+}
+
+// Function to get patient data
+function getPatientData() {
+    const patientId = document.getElementById('patient-id').value;
+    const patientDetails = document.getElementById('patient-details');
+
+    db.ref('patients/' + patientId).get()
+    .then(snapshot => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            patientDetails.innerHTML = `
+                <p>Name: ${data.name}</p>
+                <p>Age: ${data.age}</p>
+                <p>Chronic Conditions: ${data.chronicConditions}</p>
+            `;
+        } else {
+            alert("No patient found with that ID.");
+        }
+    })
+    .catch(error => console.error("Error fetching patient data: ", error));
+}
+
+// Load TensorFlow.js Model for Prediction
+let model;
+async function loadModel() {
+    model = await tf.loadLayersModel('path/to/your/model.json');
+    console.log("Model loaded successfully.");
+}
+loadModel();
+
+// Function to predict risk score
+function predictRisk() {
+    const patientId = document.getElementById('patient-id').value;
+    const riskScoreDiv = document.getElementById('risk-score');
+
+    db.ref('patients/' + patientId).get()
+    .then(snapshot => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const age = parseInt(data.age);
+            const inputTensor = tf.tensor2d([[age]], [1, 1]); // Example input for age only
+
+            const prediction = model.predict(inputTensor);
+            const riskScore = prediction.dataSync()[0];
+            riskScoreDiv.innerText = `Predicted Risk Score: ${riskScore.toFixed(2)}`;
+        } else {
+            alert("No patient found with that ID.");
+        }
+    })
+    .catch(error => console.error("Error predicting risk score: ", error));
+}
